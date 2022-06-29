@@ -1,0 +1,6 @@
+/.env
+/messages
+
+/vendor
+/node_modules
+/.vscode

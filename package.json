@@ -1,0 +1,9 @@
+{
+    "scripts": {
+        "start": "go run main.go",
+        "start:dev": "npx nodemon --exec go run main.go --signal SIGTERM || exit 1"
+    },
+    "dependencies": {
+        "nodemon": "^2.0.16"
+    }
+}

@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	YYYYMMDD    = "2006-01-02"
-	DATE_LAYOUT = "2006-01-02T15:04:00Z"
+	LAYOUT_YYYYMMDD = "2006-01-02"
+	LAYOUT_UTC      = "2006-01-02T15:04:00Z"
 )
 
 func DatifyHour(hourStr string, dateStr string) time.Time {
@@ -56,11 +56,11 @@ func GetYearAndMonthAndDay(date string) (int, uint8, uint8) {
 }
 
 func AddDate(date string, amount int) string {
-	d, err := time.Parse(YYYYMMDD, date)
+	d, err := time.Parse(LAYOUT_YYYYMMDD, date)
 	if err != nil {
 		log.Fatalf("Unable to parse date string to date time: %s\n", err.Error())
 	}
-	return d.Add(24 * time.Hour * time.Duration(amount)).Format(YYYYMMDD)
+	return d.Add(24 * time.Hour * time.Duration(amount)).Format(LAYOUT_YYYYMMDD)
 }
 
 func JSONString(object any) string {
@@ -72,7 +72,7 @@ func JSONString(object any) string {
 }
 
 func ToDate(str string) time.Time {
-	date, err := time.Parse(DATE_LAYOUT, str)
+	date, err := time.Parse(LAYOUT_UTC, str)
 	if err != nil {
 		log.Fatalf("Unable to parse date string to date time: %s\n", err.Error())
 	}
@@ -102,8 +102,8 @@ func RoundFloat(f float64, p uint) float64 {
 	return math.Round(f*r) / r
 }
 
-func ToYYYYMMDDDate(str string) time.Time {
-	d, err := time.Parse(YYYYMMDD, str)
+func ToLocaleDate(str string) time.Time {
+	d, err := time.Parse(LAYOUT_YYYYMMDD, str)
 	if err != nil {
 		log.Fatalf("Unable to parse date string to yyyy-mm-dd date: %s\n", err.Error())
 	}
@@ -112,8 +112,8 @@ func ToYYYYMMDDDate(str string) time.Time {
 
 // d1, d2 in "YYYY-MM-DDTHH:MM:SSZ" format, -1 if s1 > s2, 1 if s1 < s2, otherwise 0
 func CompareStringDates(s1, s2 string) int {
-	d1, _ := time.Parse(YYYYMMDD, s1)
-	d2, _ := time.Parse(YYYYMMDD, s2)
+	d1, _ := time.Parse(LAYOUT_YYYYMMDD, s1)
+	d2, _ := time.Parse(LAYOUT_YYYYMMDD, s2)
 	if d1.Before(d2) {
 		return -1
 	} else if d1.After(d2) {

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"os"
 
@@ -18,13 +17,7 @@ import (
 
 func main() {
 	godotenv.Load(".env")
-	// testScript()
 	PORT := os.Getenv("PORT")
-	// var signingSecret string
-	// flag.StringVar(&signingSecret, "secret", os.Getenv("SLACK_SIGNING_SECRET"), "Slack app's signing secret")
-	// flag.Parse()
-	// log.Printf("Secret by flag: %s\n", signingSecret)
-	log.Printf("Secret by env: %s\n", os.Getenv("SLACK_SIGNING_SECRET"))
 	api := botutils.InitSlackBotClient()
 	router := gin.Default()
 	{
@@ -36,13 +29,13 @@ func main() {
 	}
 	v1 := router.Group("/slack")
 	{
-		v1.POST("/events-endpoint", func(c *gin.Context) {
+		v1.POST("/event", func(c *gin.Context) {
 			events.HandleEventRequest(c, api)
 		})
-		v1.POST("/commands-endpoint", func(c *gin.Context) {
+		v1.POST("/command", func(c *gin.Context) {
 			commands.HandleCommandRequest(c, api)
 		})
-		v1.POST("/interactive-endpoint", func(c *gin.Context) {
+		v1.POST("/interaction", func(c *gin.Context) {
 			interactions.HandleInteractionRequest(c, api)
 		})
 	}

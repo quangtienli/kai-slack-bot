@@ -23,7 +23,7 @@ func HandleEventRequest(c *gin.Context, api *slack.Client) {
 		switch event := innerEvent.Data.(type) {
 		case *slackevents.AppMentionEvent:
 			go func() {
-				handleAppMentionEvent(event, api)
+				handleAppMentionEvent(event, api, c)
 			}()
 		}
 	}

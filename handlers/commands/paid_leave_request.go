@@ -1,39 +1,30 @@
 package commands
 
 import (
+	"fmt"
+	"test-go-slack-bot/botutils"
+	"test-go-slack-bot/types"
+
 	"github.com/gin-gonic/gin"
 	"github.com/slack-go/slack"
 )
 
 const (
-	ID_PAID_LEAVE_TYPE        = "id-paid-leave-type"
-	ACTION_ID_PAID_LEAVE_TYPE = "action-id-paid-leave-type"
-
-	CALLBACK_ID_PAID_LEAVE_MODAL = "callback-id-paid-leave-modal"
-
-	ANNUAL_PL  = "Annual Leaved"
-	SICK_PL    = "Sick Leaved"
-	WEDDING_PL = "Wedding"
-	FUNERAL_PL = "Funeral"
+	PlRequestTypeID          = "pl-request-type-id"
+	PlRequestTypeActionID    = "pl-request-type-action-id"
+	PlRequestModalCallbackID = "pl-request-modal-callback-id"
 )
 
-var (
-	PL_TYPES = map[string]string{
-		ANNUAL_PL:  ANNUAL_PL,
-		SICK_PL:    SICK_PL,
-		WEDDING_PL: WEDDING_PL,
-		FUNERAL_PL: FUNERAL_PL,
-	}
-)
-
-func handlePaidLeaveCommand(command slack.SlashCommand, api *slack.Client, c *gin.Context) error {
+func handlePaidLeaveRequestCommand(command *slack.SlashCommand, api *slack.Client, c *gin.Context) {
 	mvr := buildPaidLeaveRequestModalBySDK()
+
 	_, err := api.OpenView(command.TriggerID, mvr)
 	if err != nil {
-		return err
+		errorMessage := fmt.Sprintf("Unable to open paid leave request view: %s\nn", err.Error())
+		errorMessageBlock := botutils.BuildResponseMessageBlockWithContext(errorMessage)
+		botutils.SendEphemeralResponseMessage(command.ChannelID, command.UserID, api, errorMessageBlock)
+		return
 	}
-
-	return nil
 }
 
 func buildPaidLeaveRequestModalBySDK() slack.ModalViewRequest {
@@ -42,20 +33,20 @@ func buildPaidLeaveRequestModalBySDK() slack.ModalViewRequest {
 	nextText := slack.NewTextBlockObject(slack.PlainTextType, "Next", false, false)
 
 	options := []*slack.OptionBlockObject{}
-	for value, text := range PL_TYPES {
+	for _, plType := range types.PaidLeaveTypes {
 		option := slack.NewOptionBlockObject(
-			value,
-			slack.NewTextBlockObject(slack.PlainTextType, text, false, false),
+			plType,
+			slack.NewTextBlockObject(slack.PlainTextType, plType, false, false),
 			nil,
 		)
 		options = append(options, option)
 	}
 	optionBlockElement := slack.NewRadioButtonsBlockElement(
-		ACTION_ID_PAID_LEAVE_TYPE,
+		PlRequestTypeActionID,
 		options...,
 	)
 	optionBlock := slack.NewInputBlock(
-		ID_PAID_LEAVE_TYPE,
+		PlRequestTypeID,
 		slack.NewTextBlockObject(slack.PlainTextType, "Select a type of paid leave to request", false, false),
 		nil,
 		optionBlockElement,
@@ -73,7 +64,7 @@ func buildPaidLeaveRequestModalBySDK() slack.ModalViewRequest {
 		Submit:        nextText,
 		Close:         closeText,
 		Blocks:        blocks,
-		CallbackID:    CALLBACK_ID_PAID_LEAVE_MODAL,
+		CallbackID:    PlRequestModalCallbackID,
 		NotifyOnClose: true,
 		ClearOnClose:  true,
 	}

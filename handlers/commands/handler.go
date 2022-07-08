@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	OtRequest = "/kai-ot"
+	OtRequest = "/kai-ot-request"
 	PlRequest = "/kai-pl-request"
 	OtHistory = "/kai-ot-history"
 )
@@ -54,3 +54,4 @@ func verify(c *gin.Context) (*slack.SlashCommand, error) {
 
 	return &command, nil
 }
+

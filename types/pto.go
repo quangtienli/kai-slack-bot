@@ -123,6 +123,8 @@ func (pto *Pto) ToSpreadsheetObject() []interface{} {
 }
 
 func ToPtoInstace(row []interface{}) Pto {
+	// The note may be empty
+
 	return Pto{
 		ID:               utils.ToInt(row[PtoIDColIdx].(string)),
 		ReplyID:          utils.ToInt(row[PtoReplyIDColIdx].(string)),

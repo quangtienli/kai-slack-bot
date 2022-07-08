@@ -91,6 +91,7 @@ func handleDenyReplySubmission(msg *slack.InteractionCallback, api *slack.Client
 	replyID := denyReplyPrivateMetadata.Actions.BlockActions[0].Value
 	note := msg.View.State.Values[ReplyDenyNoteBlockID][ReplyDenyNoteBlockActionID].Value
 	managerUsername := msg.User.Name
+
 	go func() {
 		sendLoadingMessage(denyReplyPrivateMetadata.Channel.ID, denyReplyPrivateMetadata.Message, api)
 		sheetutils.ConfirmReplyByID(replyID)
@@ -107,7 +108,6 @@ func handleDenyReplySubmission(msg *slack.InteractionCallback, api *slack.Client
 
 		deniedResponseMessageBlocks := buildDeniedReplyResponseMessageBlocksBySDK(denyReplyPrivateMetadata.Message.Blocks.BlockSet, manager, note)
 		botutils.SendResponseMessage(denyReplyPrivateMetadata.Channel.ID, api, deniedResponseMessageBlocks...)
-
 	}()
 }
 
@@ -117,13 +117,17 @@ func buildDeniedReplyResponseMessageBlocksBySDK(oldMsgBlocks []slack.Block, mana
 		nil,
 		nil,
 	)
-	managerInfoBlock := slack.NewSectionBlock(
-		slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*:memo: Manager's note: \"%s\"*", managerNote), false, false),
-		nil,
-		nil,
-	)
+	if len(managerNote) > 0 {
+		managerInfoBlock := slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType, fmt.Sprintf("*:memo: Manager's note: \"%s\"*", managerNote), false, false),
+			nil,
+			nil,
+		)
 
-	return append([]slack.Block{deniedInfoBlock, managerInfoBlock}, oldMsgBlocks[1:len(oldMsgBlocks)-2]...)
+		return append([]slack.Block{deniedInfoBlock, managerInfoBlock}, oldMsgBlocks[1:len(oldMsgBlocks)-2]...)
+	}
+
+	return append([]slack.Block{deniedInfoBlock}, oldMsgBlocks[1:len(oldMsgBlocks)-2]...)
 }
 
 // Open view modal request for denying member's paid leave request
@@ -147,7 +151,7 @@ func buildDenyReplyModalBySDK(msg *slack.InteractionCallback, api *slack.Client)
 		slack.NewTextBlockObject(slack.PlainTextType, "This note is required", false, false),
 		noteBlockElement,
 	)
-	noteBlock.Optional = false
+	noteBlock.Optional = true
 
 	blocks := []slack.Block{
 		noteBlock,

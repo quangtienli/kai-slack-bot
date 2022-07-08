@@ -26,6 +26,8 @@ func FindOtsByUsername(username string) ([]types.OT, error) {
 	}
 	for _, row := range resp.Values {
 		if row[types.OtUsernameColIdx].(string) == username {
+			log.Println(row...)
+			log.Println(len(row))
 			ot := types.ToOtInstance(row)
 			ots = append(ots, *ot)
 		}

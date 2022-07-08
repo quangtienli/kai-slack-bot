@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"test-go-slack-bot/sheetutils"
@@ -30,10 +28,16 @@ func handlePaidLeaveRequestSubmissionByType(msg *slack.InteractionCallback, api 
 	// log.Printf("handlePaidLeaveRequestSubmissionByType - interaction callback: %s\n", utils.JSONString(msg))
 
 	go func() {
-		appChannelID := os.Getenv("APP_CHANNEL_ID")
+		// channels, _, err := api.GetConversationsForUser(&slack.GetConversationsForUserParameters{
+		// 	UserID: msg.User.ID,
+		// })
+		// if err != nil {
+		// 	panic(err)
+		// }
+		// log.Printf("Channels that user <@%s> join in are: %s\n", msg.User.Name, utils.JSONString(channels))
 
 		loadingMessage := buildLoadingMessage()
-		_, _, err := api.PostMessage(appChannelID, slack.MsgOptionBlocks(loadingMessage))
+		_, _, err := api.PostMessage(msg.User.ID, slack.MsgOptionBlocks(loadingMessage))
 		if err != nil {
 			panic(err)
 		}
@@ -42,7 +46,7 @@ func handlePaidLeaveRequestSubmissionByType(msg *slack.InteractionCallback, api 
 		if err := validateRequests(reqs); err != nil {
 			// Send error message
 			failResponse := buildFailResponseMessage(err)
-			_, _, err := api.PostMessage(appChannelID, slack.MsgOptionBlocks(failResponse...))
+			_, _, err := api.PostMessage(msg.User.ID, slack.MsgOptionBlocks(failResponse...))
 			if err != nil {
 				panic(err)
 			}
@@ -54,8 +58,6 @@ func handlePaidLeaveRequestSubmissionByType(msg *slack.InteractionCallback, api 
 
 		user, err := api.GetUserInfo(msg.User.ID)
 		if err != nil {
-			failResponse := buildFailResponseMessage(err)
-			_, _, err := api.PostMessage(appChannelID, slack.MsgOptionBlocks(failResponse...))
 			if err != nil {
 				panic(err)
 			}
@@ -78,7 +80,7 @@ func handlePaidLeaveRequestSubmissionByType(msg *slack.InteractionCallback, api 
 		manager, err := api.GetUserByEmail(managerSumPto.UserEmail)
 		if err != nil {
 			failResponse := buildFailResponseMessage(err)
-			_, _, err := api.PostMessage(appChannelID, slack.MsgOptionBlocks(failResponse...))
+			_, _, err := api.PostMessage(msg.User.ID, slack.MsgOptionBlocks(failResponse...))
 			if err != nil {
 				panic(err)
 			}
@@ -86,34 +88,38 @@ func handlePaidLeaveRequestSubmissionByType(msg *slack.InteractionCallback, api 
 		}
 		// log.Println(manager)
 
-		// Build reply message and send it to the manager
-		replyMesage := buildReplyMessageBlocks(reqs, reply)
+		// Send reply message to the manager
+		replyMesage := buildReplyMessageBlocks(reqs, reply, manager, user)
 		_, _, err = api.PostMessage(manager.ID, slack.MsgOptionBlocks(replyMesage...))
 		if err != nil {
 			failResponse := buildFailResponseMessage(err)
-			_, _, err := api.PostMessage(appChannelID, slack.MsgOptionBlocks(failResponse...))
+			_, _, err := api.PostMessage(msg.User.ID, slack.MsgOptionBlocks(failResponse...))
 			if err != nil {
 				panic(err)
 			}
 			return
 		}
 
+		// Send response message to the user
 		successResponse := buildSuccessResponseMessage(reqs)
-		_, _, err = api.PostMessage(appChannelID, slack.MsgOptionBlocks(successResponse...))
+		_, _, err = api.PostMessage(msg.User.ID, slack.MsgOptionBlocks(successResponse...))
 		if err != nil {
 			panic(err)
 		}
 	}()
 
-	c.JSON(http.StatusOK, slack.NewClearViewSubmissionResponse())
+	// loadingMessage := buildLoadingMessage()
+	// loadingMessage := gin.H{
+	// 	"text": "Your request is being processed.",
+	// }
+	// c.JSON(http.StatusOK, loadingMessage)
 }
 
-func buildReplyMessageBlocks(ptos []types.Pto, reply *types.Reply) []slack.Block {
+func buildReplyMessageBlocks(ptos []types.Pto, reply *types.Reply, manager *slack.User, user *slack.User) []slack.Block {
 	if len(ptos) == 0 {
 		return nil
 	}
 
-	username := ptos[0].Username
 	plType := ptos[0].Type
 	note := ptos[0].Note
 
@@ -127,7 +133,7 @@ func buildReplyMessageBlocks(ptos []types.Pto, reply *types.Reply) []slack.Block
 	headerBlock := slack.NewSectionBlock(
 		slack.NewTextBlockObject(
 			slack.MarkdownType,
-			fmt.Sprintf("You have a new request to be confirmed, %s!\n*%s - Paid Leave Request*", reply.ManagerUsername, username),
+			fmt.Sprintf("You have a new request to be confirmed, <@%s>!\n*<@%s> - Paid Leave Request*", manager.ID, user.ID),
 			false,
 			false,
 		),
@@ -135,6 +141,21 @@ func buildReplyMessageBlocks(ptos []types.Pto, reply *types.Reply) []slack.Block
 		nil,
 		slack.SectionBlockOptionBlockID(ReplyHeaderBlockID),
 	)
+
+	remaining := sheetutils.GetRemainingDaysByPLType(plType, user)
+	var balanceInfoText string = ""
+	if plType == types.SickLeave {
+		balanceInfoText = fmt.Sprintf("*Remaining sick leave*: `%.1f days`\n", remaining)
+	} else if plType == types.AnnualLeave {
+		balanceInfoText = fmt.Sprintf("*Remaining balance*: `%.1f days`\n", remaining)
+	}
+
+	var durationInfoText = ""
+	if duration > 1 {
+		durationInfoText = fmt.Sprintf("%.1f days", duration)
+	} else if duration > 0 {
+		durationInfoText = fmt.Sprintf("%.1f day", duration)
+	}
 
 	infoAccessory := slack.NewImageBlockElement(
 		"https://img.freepik.com/free-vector/calendar-deadline-with-clock-flat-design_115464-601.jpg?w=2000",
@@ -144,11 +165,11 @@ func buildReplyMessageBlocks(ptos []types.Pto, reply *types.Reply) []slack.Block
 		slack.NewTextBlockObject(
 			slack.MarkdownType,
 			fmt.Sprintf(
-				"*Type*: `%s`\n*Total duration*: `%.1f days`\n*When*:\n%s*Current balance*: `%.1f days`\n*Note*: \"%s\"",
+				"*Type*: `%s`\n*Total duration*: `%s`\n*When*:\n%s%s*Note*: \"%s\"",
 				plType,
-				duration,
+				durationInfoText,
 				plInfo,
-				float64(12),
+				balanceInfoText,
 				note,
 			),
 			false,
@@ -259,7 +280,7 @@ func buildLoadingMessage() *slack.SectionBlock {
 	loadingMessage := slack.NewSectionBlock(
 		slack.NewTextBlockObject(
 			slack.MarkdownType,
-			"Your leave request is being processed",
+			"Your leave request is being processed :danceparrot:",
 			false,
 			false,
 		),

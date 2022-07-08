@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"test-go-slack-bot/botutils"
@@ -30,6 +31,9 @@ const (
 
 	OtRequestModalCallbackID = "ot-request-modal-callback-id"
 
+	OtRequestLoadingBlockID         = "ot-request-loading-block-id"
+	OtRequestLoadingModalCallbackID = "ot-request-loading-modal-callback-id"
+
 	// OtRequestLoadingMessageBlockID = "ot-request-loading-message-block-id"
 )
 
@@ -40,6 +44,15 @@ func handleOvertTimeRequestCommand(command *slack.SlashCommand, api *slack.Clien
 	botutils.SendEphemeralResponseMessage(command.ChannelID, command.UserID, api, loadingMessageBlock)
 
 	go func() {
+		loadingMvr := buildLoadingOverTimeRequestModalBySDK()
+		loadingViewResp, err := api.OpenView(command.TriggerID, loadingMvr)
+		if err != nil {
+			errorMessage := fmt.Sprintf("Error while opening loading ot request modal: %s, please try again.\n", err.Error())
+			errorMessageBlock := botutils.BuildResponseMessageBlockWithContext(errorMessage)
+			botutils.SendEphemeralResponseMessage(command.ChannelID, command.UserID, api, errorMessageBlock)
+			return
+		}
+
 		projects, err := sheetutils.FindAllProjects()
 		if err != nil {
 			errorMessage := fmt.Sprintf("Error while fetching projects: %s, please try again.\n", err.Error())
@@ -48,26 +61,48 @@ func handleOvertTimeRequestCommand(command *slack.SlashCommand, api *slack.Clien
 			return
 		}
 
-		mvr := buildOverTimeRequestModalBySDK(projects)
-		_, err = api.OpenView(command.TriggerID, mvr)
+		updatedMvr := buildOverTimeRequestModalBySDK(projects)
+		_, err = api.UpdateView(updatedMvr, loadingViewResp.ExternalID, loadingViewResp.Hash, loadingViewResp.ID)
 		if err != nil {
-			errorMessage := fmt.Sprintf("Error while opening ot request modal: %s, please try again.\n", err.Error())
+			errorMessage := fmt.Sprintf("Error while updating loading ot request modal: %s, please try again.\n", err.Error())
 			errorMessageBlock := botutils.BuildResponseMessageBlockWithContext(errorMessage)
 			botutils.SendEphemeralResponseMessage(command.ChannelID, command.UserID, api, errorMessageBlock)
 			return
 		}
-	}()
 
+	}()
+}
+
+func buildLoadingOverTimeRequestModalBySDK() slack.ModalViewRequest {
+
+	loadingBlock := slack.NewContextBlock(
+		OtRequestLoadingBlockID,
+		slack.NewImageBlockElement("https://i.stack.imgur.com/kOnzy.gif", "Loading..."),
+	)
+
+	blocks := slack.Blocks{
+		BlockSet: []slack.Block{
+			loadingBlock,
+		},
+	}
+
+	titleText := slack.NewTextBlockObject(slack.PlainTextType, "Overtime Tracking Form", false, false)
+	mvr := slack.ModalViewRequest{
+		Type:          slack.VTModal,
+		Title:         titleText,
+		Blocks:        blocks,
+		CallbackID:    OtRequestLoadingModalCallbackID,
+		ClearOnClose:  true,
+		NotifyOnClose: true,
+	}
+
+	return mvr
 }
 
 func buildOverTimeRequestModalBySDK(projects []types.Project) slack.ModalViewRequest {
-	titleText := slack.NewTextBlockObject("plain_text", "kai", false, false)
-	submitText := slack.NewTextBlockObject("plain_text", "Submit", false, false)
-	closeText := slack.NewTextBlockObject("plain_text", "Cancel", false, false)
-
-	headerBlock := slack.NewHeaderBlock(
-		slack.NewTextBlockObject(slack.PlainTextType, "OT Tracking Form", false, false),
-	)
+	titleText := slack.NewTextBlockObject(slack.PlainTextType, "Overtime Tracking Form", false, false)
+	submitText := slack.NewTextBlockObject(slack.PlainTextType, "Submit", false, false)
+	closeText := slack.NewTextBlockObject(slack.PlainTextType, "Cancel", false, false)
 
 	var projectOptions []*slack.OptionBlockObject = []*slack.OptionBlockObject{}
 	for _, p := range projects {
@@ -96,7 +131,7 @@ func buildOverTimeRequestModalBySDK(projects []types.Project) slack.ModalViewReq
 	startDatePickerBlock := slack.NewInputBlock(
 		OtRequestStartDayBlockID,
 		slack.NewTextBlockObject(slack.PlainTextType, "Date", false, false),
-		slack.NewTextBlockObject(slack.PlainTextType, "Select a valid day on which you want to OT", false, false),
+		slack.NewTextBlockObject(slack.PlainTextType, "Select a valid day", false, false),
 		slack.DatePickerBlockElement{
 			Type:        slack.METDatepicker,
 			ActionID:    OtRequestStartDayActionID,
@@ -122,7 +157,7 @@ func buildOverTimeRequestModalBySDK(projects []types.Project) slack.ModalViewReq
 	noteBlock := slack.NewInputBlock(
 		OtRequestNoteBlockID,
 		slack.NewTextBlockObject(slack.PlainTextType, "Note", false, false),
-		slack.NewTextBlockObject(slack.PlainTextType, "Additional notes", false, false),
+		nil,
 		slack.PlainTextInputBlockElement{
 			Type:        slack.METPlainTextInput,
 			ActionID:    OtRequestNoteActionID,
@@ -134,7 +169,6 @@ func buildOverTimeRequestModalBySDK(projects []types.Project) slack.ModalViewReq
 
 	blocks := slack.Blocks{
 		BlockSet: []slack.Block{
-			headerBlock,
 			projectSelectBlock,
 			startDatePickerBlock,
 			startTimePickerBlock,
@@ -142,6 +176,7 @@ func buildOverTimeRequestModalBySDK(projects []types.Project) slack.ModalViewReq
 			noteBlock,
 		},
 	}
+	log.Println(submitText, closeText)
 
 	mvr := slack.ModalViewRequest{
 		Type:          slack.VTModal,

@@ -10,15 +10,17 @@ import (
 )
 
 const (
-	PlRequestTypeID          = "pl-request-type-id"
+	PlRequestTypeBlockID     = "pl-request-type-id"
 	PlRequestTypeActionID    = "pl-request-type-action-id"
 	PlRequestModalCallbackID = "pl-request-modal-callback-id"
 )
 
 func handlePaidLeaveRequestCommand(command *slack.SlashCommand, api *slack.Client, c *gin.Context) {
 	mvr := buildPaidLeaveRequestModalBySDK()
+	mvr.ExternalID = command.TriggerID
 
 	_, err := api.OpenView(command.TriggerID, mvr)
+
 	if err != nil {
 		errorMessage := fmt.Sprintf("Unable to open paid leave request view: %s\nn", err.Error())
 		errorMessageBlock := botutils.BuildResponseMessageBlockWithContext(errorMessage)
@@ -46,7 +48,7 @@ func buildPaidLeaveRequestModalBySDK() slack.ModalViewRequest {
 		options...,
 	)
 	optionBlock := slack.NewInputBlock(
-		PlRequestTypeID,
+		PlRequestTypeBlockID,
 		slack.NewTextBlockObject(slack.PlainTextType, "Select a type of paid leave to request", false, false),
 		nil,
 		optionBlockElement,
@@ -59,14 +61,12 @@ func buildPaidLeaveRequestModalBySDK() slack.ModalViewRequest {
 	}
 
 	mvr := slack.ModalViewRequest{
-		Type:          slack.VTModal,
-		Title:         titleText,
-		Submit:        nextText,
-		Close:         closeText,
-		Blocks:        blocks,
-		CallbackID:    PlRequestModalCallbackID,
-		NotifyOnClose: true,
-		ClearOnClose:  true,
+		Type:       slack.VTModal,
+		Title:      titleText,
+		Submit:     nextText,
+		Close:      closeText,
+		Blocks:     blocks,
+		CallbackID: PlRequestModalCallbackID,
 	}
 
 	return mvr

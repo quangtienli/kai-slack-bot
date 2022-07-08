@@ -131,3 +131,7 @@ func InsertAt[T slack.Block](s []T, idx int, b T) []T {
 	s[idx] = b
 	return s
 }
+
+func ToCapital(s string) string {
+	return strings.Title(strings.ToLower(s))
+}

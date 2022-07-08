@@ -7,6 +7,7 @@ import (
 	"test-go-slack-bot/types"
 	"test-go-slack-bot/utils"
 
+	"github.com/slack-go/slack"
 	"google.golang.org/api/sheets/v4"
 )
 
@@ -121,6 +122,19 @@ func UpdateSumPtoDayTypeByReplyID(replyID string) {
 	}
 
 	log.Printf("UpdatePtoDayTypeByReplyID - response: %s\n", utils.JSONString(resp))
+}
+
+// [TODO]
+func GetRemainingDaysByPLType(plType string, user *slack.User) float64 {
+	_, sumPto := FindSumPtoByUsername(user.Name)
+
+	if plType == types.SickLeave {
+		// Max sick leave is 2 days
+		return 2 - sumPto.Sick
+	}
+
+	// Annual leave
+	return sumPto.Allotment - sumPto.Annual
 }
 
 func PtoTypeReadRange(ptoType string, rowIdx int) string {

@@ -11,6 +11,7 @@ import (
 	"test-go-slack-bot/sheetutils"
 	"test-go-slack-bot/types"
 	"test-go-slack-bot/utils"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/slack-go/slack"
@@ -37,77 +38,120 @@ const (
 	SickLeaveModalCallbackID    = "sick-leave-modal-callback-id"
 	WeddingLeaveModalCallbackID = "wedding-leave-modal-callback-id"
 	FuneralLeaveCallbackID      = "funeral-le ave-modal-callback-id"
+
+	plRequestLoadingBlockID         = "pl-request-loading-block-id"
+	plRequestLoadingModalCallbackID = "pl-request-loading-modal-callback-id"
 )
 
 // Open modal view request for paid leave request by a pre-selected type
 func handlePaidLeaveRequest(msg *slack.InteractionCallback, api *slack.Client, c *gin.Context) {
-	plTypeText := msg.View.State.Values[commands.PlRequestTypeID][commands.PlRequestTypeActionID].SelectedOption.Text.Text
+	plType := msg.View.State.Values[commands.PlRequestTypeBlockID][commands.PlRequestTypeActionID].SelectedOption.Text.Text
 	user, err := api.GetUserInfo(msg.User.ID)
 	if err != nil {
 		panic(err)
 	}
+	log.Println(plType, user)
 
-	// Get allowable remaining days according to the type of the day
-	count := sheetutils.GetRemainingDaysByPLType(plTypeText, user)
+	loadingView := buildLoadingPaidLeaveRequestModalBySDK(plType)
+	loadingViewUpdateResp := slack.NewUpdateViewSubmissionResponse(loadingView)
+	c.JSON(http.StatusOK, loadingViewUpdateResp)
 
-	// Build modal view request and push it
-	mvr := buildPaidLeaveRequestModalByType(plTypeText, user, count)
-	resp := slack.NewPushViewSubmissionResponse(mvr)
-	c.JSON(http.StatusOK, resp)
+	go func() {
+		remaining := sheetutils.GetRemainingDaysByPLType(plType, user)
+		updatedView := buildPaidLeaveRequestModalByType(plType, user, remaining)
+		updatedViewResp, err := api.UpdateView(*updatedView, loadingView.ExternalID, msg.Hash, "")
+		if err != nil {
+			panic(err)
+		}
+		log.Printf("%s\n", utils.JSONString(updatedViewResp))
+	}()
 }
 
-// Build the paid leave modal by a type that members has chosen
-func buildPaidLeaveRequestModalByType(plTypeText string, user *slack.User, count int) *slack.ModalViewRequest {
+func buildLoadingPaidLeaveRequestModalBySDK(plType string) *slack.ModalViewRequest {
 	titleText := slack.NewTextBlockObject(
 		slack.PlainTextType,
-		fmt.Sprintf("%s Request", plTypeText),
+		fmt.Sprintf("%s Request", utils.ToCapital(plType)),
 		false,
 		false,
 	)
-	closeText := slack.NewTextBlockObject(slack.PlainTextType, "Cancel", false, false)
+
+	loadingBlock := slack.NewContextBlock(
+		plRequestLoadingBlockID,
+		slack.NewImageBlockElement("https://i.stack.imgur.com/kOnzy.gif", "Loading..."),
+	)
+
+	blocks := slack.Blocks{
+		BlockSet: []slack.Block{
+			loadingBlock,
+		},
+	}
+
+	mvr := &slack.ModalViewRequest{
+		Type:          slack.VTModal,
+		Title:         titleText,
+		Blocks:        blocks,
+		CallbackID:    plRequestLoadingModalCallbackID,
+		ExternalID:    fmt.Sprintf("%s-%s", plRequestLoadingModalCallbackID, time.Now().String()),
+		ClearOnClose:  true,
+		NotifyOnClose: true,
+	}
+
+	return mvr
+}
+
+// Build the paid leave modal by a type that members has chosen
+func buildPaidLeaveRequestModalByType(plType string, user *slack.User, remainingCount float64) *slack.ModalViewRequest {
+	titleText := slack.NewTextBlockObject(
+		slack.PlainTextType,
+		fmt.Sprintf("%s Request", utils.ToCapital(plType)),
+		false,
+		false,
+	)
+	closeText := slack.NewTextBlockObject(slack.PlainTextType, "Back", false, false)
 	submitText := slack.NewTextBlockObject(slack.PlainTextType, "Submit", false, false)
 
 	dividerBlock := slack.NewDividerBlock()
 
 	countBlock := new(slack.SectionBlock)
-	if plTypeText == types.AnnualLeave {
+	if plType == types.AnnualLeave {
 		countBlock = slack.NewSectionBlock(
 			slack.NewTextBlockObject(
 				slack.MarkdownType,
-				fmt.Sprintf("Hi <@%s>, your remaining annual leaves are %d days", user.ID, count),
+				fmt.Sprintf("Hi *%s*! Here's your remaining annual leaves: *%.1f*", user.Profile.FirstName, remainingCount),
 				false,
 				false,
 			),
 			nil,
 			nil,
 		)
-	} else if plTypeText == types.SickLeave {
+	} else if plType == types.SickLeave {
+		// Fetch remaing sick leaves here
 		countBlock = slack.NewSectionBlock(
 			slack.NewTextBlockObject(
 				slack.MarkdownType,
-				fmt.Sprintf("Hi <@%s>, you can request up to *%d days* for sick leaves.\n_Requested leaves on weekend will also be paid._", user.ID, 2),
+				fmt.Sprintf("Hi *%s*! Here's your remaininng sick leaves: *%.1f*", user.Profile.FirstName, remainingCount),
 				false,
 				false,
 			),
 			nil,
 			nil,
 		)
-	} else if plTypeText == types.WeddingLeave {
+	} else if plType == types.WeddingLeave {
 		countBlock = slack.NewSectionBlock(
 			slack.NewTextBlockObject(
 				slack.MarkdownType,
-				fmt.Sprintf("Hi <@%s>, you can request up to *%d days* for wedding leaves.\n_Requested leaves on weekend will also be paid._", user.ID, 3),
+				fmt.Sprintf("Hi *%s*, you can request up to *%d days* for wedding leaves.\n_Requested leaves on weekend will also be paid._", user.Profile.FirstName, 3),
 				false,
 				false,
 			),
 			nil,
 			nil,
 		)
-	} else if plTypeText == types.FuneralLeave {
+	} else if plType == types.FuneralLeave {
 		countBlock = slack.NewSectionBlock(
 			slack.NewTextBlockObject(
 				slack.MarkdownType,
-				fmt.Sprintf("Hi <@%s>, you can request up to *%d days* for funeral leaves.\n_Requested leaves on weekend will also be paid._", user.ID, 2),
+				fmt.Sprintf("Hi *%s*, you can request up to *%d days* for funeral leaves.\n_Requested leaves on weekend will also be paid._", user.Profile.FirstName, 2),
 				false,
 				false,
 			),
@@ -143,36 +187,36 @@ func buildPaidLeaveRequestModalByType(plTypeText string, user *slack.User, count
 		optionPickerBlockElement,
 	)
 
+	moreDayButtonBlockElement := slack.NewButtonBlockElement(
+		plRequestByTypeMoreDayActionID,
+		plRequestByTypeMoreDayValue,
+		slack.NewTextBlockObject(slack.PlainTextType, "Add a date", false, false),
+	)
+	moreDayButtonBlockElement.Style = slack.StylePrimary
 	moreDayBlock := slack.NewSectionBlock(
 		slack.NewTextBlockObject(
 			slack.PlainTextType,
-			"Request an additional day",
+			"Want to request more dates?",
 			false,
 			false,
 		),
 		nil,
-		slack.NewAccessory(
-			slack.NewButtonBlockElement(
-				plRequestByTypeMoreDayActionID,
-				plRequestByTypeMoreDayValue,
-				slack.NewTextBlockObject(slack.PlainTextType, "Add a date", false, false),
-			),
-		),
+		slack.NewAccessory(moreDayButtonBlockElement),
 		slack.SectionBlockOptionBlockID(plRequestByTypeMoreDayBlockID),
 	)
 
 	noteBlock := slack.NewInputBlock(
 		plRequestByTypeNoteBlockID,
 		slack.NewTextBlockObject(slack.PlainTextType, "Note", false, false),
-		slack.NewTextBlockObject(slack.PlainTextType, "Additional notes", false, false),
+		nil,
 		slack.PlainTextInputBlockElement{
 			Type:        slack.METPlainTextInput,
 			ActionID:    plRequestByTypeNoteActionID,
 			Multiline:   true,
-			Placeholder: slack.NewTextBlockObject(slack.PlainTextType, "Notes", false, false),
+			Placeholder: slack.NewTextBlockObject(slack.PlainTextType, "Write something", false, false),
 		},
 	)
-	noteBlock.Optional = false
+	noteBlock.Optional = true
 
 	blocks := slack.Blocks{
 		BlockSet: []slack.Block{
@@ -189,7 +233,7 @@ func buildPaidLeaveRequestModalByType(plTypeText string, user *slack.User, count
 
 	mvr := &slack.ModalViewRequest{
 		Type:          slack.VTModal,
-		CallbackID:    getModalCallBackIDByType(plTypeText),
+		CallbackID:    getModalCallBackIDByType(plType),
 		Title:         titleText,
 		Close:         closeText,
 		Submit:        submitText,
@@ -240,7 +284,9 @@ func buildMoreDayPaidLeaveRequestModalByType(msg *slack.InteractionCallback) *sl
 		}
 	}
 
-	blocks = insertDayBlock(blocks, getIndexToInsertDayBlock(blocks), dayActionBlock)
+	idx := getIndexToInsertDayBlock(blocks)
+	blocks = insertBlock(blocks, idx, slack.NewDividerBlock())
+	blocks = insertBlock(blocks, idx+1, dayActionBlock)
 	mvr := botutils.UpdateModal(msg.View, blocks)
 
 	return mvr
@@ -273,7 +319,7 @@ func buildLessDayPaidLeaveRequestModalByType(msg *slack.InteractionCallback) *sl
 	}
 
 	// Remove it
-	blocks = append(blocks[0:clickedBlockIndex], blocks[clickedBlockIndex+1:]...)
+	blocks = append(blocks[0:clickedBlockIndex-1], blocks[clickedBlockIndex+1:]...)
 
 	// Since "blocks" only contain the UI implementation -> move selected value to every block
 	for _, block := range blocks {
@@ -394,7 +440,7 @@ func getIndexToInsertDayBlock(blocks []slack.Block) int {
 }
 
 // Insert the day block by an index
-func insertDayBlock(blocks []slack.Block, idx int, block slack.Block) []slack.Block {
+func insertBlock(blocks []slack.Block, idx int, block slack.Block) []slack.Block {
 	if len(blocks) == idx {
 		return append(blocks, block)
 	}

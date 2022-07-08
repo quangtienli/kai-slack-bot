@@ -30,6 +30,8 @@ const (
 	ManagerAcceptReply          = "manager-accept-reply"
 	ManagerDenyReply            = "manager-deny-reply"
 	ManagerSubmitDenyReplyModal = "manager-submit-deny-reply-modal"
+
+	SelectPaidLeaveRequestType = "select-paid-leave-request-type"
 )
 
 func HandleInteractionRequest(c *gin.Context, api *slack.Client) {
@@ -38,6 +40,7 @@ func HandleInteractionRequest(c *gin.Context, api *slack.Client) {
 		c.JSON(http.StatusInternalServerError, gin.H{"text": err.Error()})
 	}
 
+	// log.Printf("HandleInteractionRequest: %s\n", utils.JSONString(msg))
 	switch identifyRequestType(msg) {
 	case OtModalSubmission:
 		handleOtModalSubmission(msg, api, c)
@@ -105,6 +108,7 @@ func identifyRequestType(msg *slack.InteractionCallback) string {
 		if actionCallback.BlockID == ReplyActionBlockID && actionCallback.ActionID == ReplyDenyButtonActionID {
 			return ManagerDenyReply
 		}
+
 	}
 
 	return CALLBACK_ID_UNKNOWN

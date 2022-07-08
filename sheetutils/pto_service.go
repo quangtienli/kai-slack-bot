@@ -9,7 +9,6 @@ import (
 	"test-go-slack-bot/utils"
 	"time"
 
-	"github.com/slack-go/slack"
 	"google.golang.org/api/sheets/v4"
 )
 
@@ -185,10 +184,4 @@ func GetTotalPto() int {
 		panic(err)
 	}
 	return N
-}
-
-// [TODO]
-func GetRemainingDaysByPLType(plType string, user *slack.User) int {
-	var count int = 12
-	return count
 }

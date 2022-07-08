@@ -13,8 +13,8 @@ const (
 	OtStartTimeColIdx = 4
 	OtEndTimeColIdx   = 5
 	OtDurationColIdx  = 6
-	OtCreatedAtColIdx = 7
-	OtNoteColIdx      = 8
+	OtNoteColIdx      = 7
+	OtCreatedAtColIdx = 8
 )
 
 type OT struct {
@@ -52,24 +52,18 @@ func (ot *OT) ToSpreadsheetObject() []interface{} {
 		utils.ToSpreadsheetDateTime(ot.StartAt),
 		utils.ToSpreadsheetDateTime(ot.EndAt),
 		ot.Duration,
-		utils.ToSpreadsheetDateTime(ot.CreatedAt),
 		ot.Note,
+		utils.ToSpreadsheetDateTime(ot.CreatedAt),
 	}
 }
 
 func ToOtInstance(row []interface{}) *OT {
-	// "note" exists
-	var note string
-	if len(row) > 8 {
-		note = row[OtNoteColIdx].(string)
-	}
-
 	return NewOT(
 		utils.ToInt(row[OtIDColIdx].(string)),
 		row[OtUsernameColIdx].(string),
 		row[OtProjectColIdx].(string),
 		row[OtDateColIdx].(string),
-		note,
+		row[OtNoteColIdx].(string),
 		utils.FromSpreadsheetDateTime(row[OtStartTimeColIdx].(string)),
 		utils.FromSpreadsheetDateTime(row[OtEndTimeColIdx].(string)),
 		utils.ToFloat(row[OtDurationColIdx].(string)),

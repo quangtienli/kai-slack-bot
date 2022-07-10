@@ -26,6 +26,12 @@ func main() {
 		router.GET("/", func(c *gin.Context) {
 			c.String(http.StatusOK, "App is running.")
 		})
+		router.GET("/env", func(c *gin.Context) {
+			spreadsheetID := os.Getenv("SPREADSHEET_ID")
+			c.JSON(http.StatusOK, gin.H{
+				"spreadsheetId": spreadsheetID,
+			})
+		})
 	}
 	v1 := router.Group("/slack")
 	{

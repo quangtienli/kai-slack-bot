@@ -12,6 +12,7 @@ import (
 	"test-go-slack-bot/handlers/interactions"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/heroku/x/hmetrics/onload"
 	"github.com/joho/godotenv"
 )
 

@@ -20,11 +20,10 @@ func main() {
 	PORT := os.Getenv("PORT")
 	api := botutils.InitSlackBotClient()
 	router := gin.Default()
+	router.Use(gin.Logger())
 	{
 		router.GET("/", func(c *gin.Context) {
 			c.String(http.StatusOK, "App is running.")
-		})
-		router.POST("/json", func(c *gin.Context) {
 		})
 	}
 	v1 := router.Group("/slack")

@@ -15,11 +15,6 @@ import (
 )
 
 const (
-	CALLBACK_ID_UNKNOWN = "callback-id-unknown"
-	MORE_ANNUAL_LEAVE   = "more-annual-leave"
-)
-
-const (
 	ButtonMoreDayPaidLeave = "button-more-day-paid-leave"
 	ButtonLessDayPaidLeave = "button-less-day-paid-leave"
 
@@ -32,6 +27,8 @@ const (
 	ManagerSubmitDenyReplyModal = "manager-submit-deny-reply-modal"
 
 	SelectPaidLeaveRequestType = "select-paid-leave-request-type"
+
+	UnknownRequestType = "unknown-request-type"
 )
 
 func HandleInteractionRequest(c *gin.Context, api *slack.Client) {
@@ -111,7 +108,7 @@ func identifyRequestType(msg *slack.InteractionCallback) string {
 
 	}
 
-	return CALLBACK_ID_UNKNOWN
+	return UnknownRequestType
 }
 
 // Verify interaction requests from Slack

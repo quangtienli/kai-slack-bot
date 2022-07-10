@@ -54,4 +54,3 @@ func verify(c *gin.Context) (*slack.SlashCommand, error) {
 
 	return &command, nil
 }
-
